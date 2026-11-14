@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analisador Musical</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><img class="logo" src="/static/favicon.svg" alt="" width="24" height="24"> Analisador Musical</div>
+  <div class="add">
+    <input id="folder" placeholder="Caminho da pasta, ex.: D:\Música" spellcheck="false">
+    <button id="pick" class="ghost" title="Escolher pasta">📁</button>
+    <button id="scan">Adicionar pasta</button>
+    <label class="btn ghost">Enviar arquivos<input id="files" type="file" multiple accept="audio/*" hidden></label>
+  </div>
+  <div id="status" class="status"></div>
+</header>
+
+<main>
+  <section class="lib">
+    <div class="filters">
+      <input id="q" placeholder="Buscar título, artista, álbum…">
+      <div class="row">
+        <input id="bmin" type="number" placeholder="BPM mín" min="0">
+        <input id="bmax" type="number" placeholder="BPM máx" min="0">
+        <label class="chk"><input id="hd" type="checkbox"> ½× / 2×</label>
+      </div>
+      <div class="row">
+        <select id="key"><option value="">Qualquer tom</option></select>
+        <button id="compat" class="ghost small" title="Filtrar tons compatíveis com a faixa aberta">Compatíveis</button>
+        <button id="clear" class="ghost small">Limpar</button>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table id="tbl">
+        <thead><tr>
+          <th data-s="title">Faixa</th><th data-s="bpm">BPM</th><th data-s="key">Tom</th>
+          <th data-s="lufs">LUFS</th><th data-s="energy">Energia</th><th data-s="duration">Dur.</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="libfoot" id="libfoot"></div>
+  </section>
+
+  <section class="detail" id="detail">
+    <div class="empty">
+      <p>Adicione uma pasta de músicas ou arraste arquivos para cá.</p>
+      <p class="muted">A análise roda em segundo plano; clique em uma faixa para ver os detalhes.</p>
+    </div>
+  </section>
+</main>
+
+<div id="drop" class="drop">Solte os arquivos de áudio para analisar</div>
+<div id="toast" class="toast"></div>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

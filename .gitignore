@@ -1,0 +1,32 @@
+# ambiente e dados locais
+.venv/
+__pycache__/
+*.pyc
+data/
+exports/
+
+# projetos de clipe e amostras: contêm áudio e letras de terceiros (repositório público)
+videos/
+amostras/
+
+# mídia nunca vai para o repositório
+*.mp3
+*.wav
+*.flac
+*.m4a
+*.ogg
+*.opus
+*.aac
+*.aif
+*.aiff
+*.mp4
+*.mov
+*.webm
+*.rar
+*.zip
+
+# saídas de ferramentas
+node_modules/
+.hyperframes/
+claude_log.jsonl
+job.json

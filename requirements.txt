@@ -1,0 +1,19 @@
+# PyTorch para RTX 50xx (Blackwell) precisa de CUDA 12.8+:
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+librosa
+soundfile
+soxr
+pyloudnorm
+mutagen
+numpy
+scipy
+scikit-learn
+fastapi
+uvicorn[standard]
+python-multipart
+demucs
+transformers
+einops
+rotary-embedding-torch
+# Beat This! (rastreamento de batidas neural, CPJKU):
+#   pip install https://github.com/CPJKU/beat_this/archive/main.zip
