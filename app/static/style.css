@@ -117,6 +117,31 @@ canvas { width: 100%; display: block; }
 .brief label:not(.chk) { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .brief select { min-width: 150px; text-transform: none; letter-spacing: 0; color: var(--text); font-size: 13px; }
 .prompt .row + textarea, .prompt textarea + .row { margin-top: 8px; }
+/* lixeira por faixa */
+th.rm { cursor: default; width: 34px; }
+td.rm { padding: 0 6px 0 0; text-align: right; }
+.rmbtn { background: none; border: 1px solid transparent; padding: 3px 6px; border-radius: 6px; opacity: .35; font-size: 13px; }
+tr:hover .rmbtn { opacity: .85; }
+.rmbtn:hover { opacity: 1; border-color: #ff5d6c66; background: #ff5d6c1f; }
+button.danger:hover { border-color: #ff5d6c88; color: var(--err); }
+
+/* painel do videoclipe */
+.clip { border-color: #7c6cff55; background: linear-gradient(180deg, #1b1830 0%, var(--panel) 60%); }
+.bgroup { display: flex; flex-direction: column; gap: 6px; flex-basis: 100%; }
+.blbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chipbtn { background: var(--panel2); border: 1px solid var(--line); font-weight: 500; padding: 7px 13px; border-radius: 99px; }
+.chipbtn.on { background: #7c6cff33; border-color: var(--accent); color: #fff; box-shadow: 0 0 0 1px var(--accent) inset; }
+.brow { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; }
+.brow label:not(.chk) { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.brow select { min-width: 110px; text-transform: none; letter-spacing: 0; color: var(--text); font-size: 13px; }
+.clip .brief { flex-direction: column; align-items: stretch; gap: 12px; }
+.clip textarea#extra { width: 100%; margin-top: 4px; }
+button.big { padding: 10px 20px; font-size: 15px; }
+.row.subtle { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; font-size: 12.5px; }
+.small-note { font-size: 12px; margin: 6px 0; }
+#prompthead { scroll-margin-top: 10px; }
+#cliphead { scroll-margin-top: 10px; }
 .genrow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 10px 0; padding: 10px; border: 1px dashed #7c6cff66; border-radius: 9px; }
 .genrow label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .genrow select { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 13px; }

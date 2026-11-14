@@ -44,6 +44,7 @@ async function loadTracks() {
       <td>${t.lufs != null ? t.lufs.toFixed(1) : "–"}</td>
       <td>${t.energy != null ? `<span class="ebar"><i style="width:${t.energy * 100}%"></i></span>` : "–"}</td>
       <td>${t.duration ? fmt(t.duration) : "–"}</td>
+      <td class="rm"><button class="rmbtn" data-rm="${t.id}" title="Remover da biblioteca (o arquivo não é apagado)">🗑</button></td>
     </tr>`).join("");
   $("#libfoot").innerHTML = `<span>${data.items.length} de ${data.total} faixas${state.camelotFilter ? ` · tons ${state.camelotFilter}` : ""}</span>
     <button class="ghost small" id="upd" title="Reanalisa faixas feitas por versões antigas do analisador">Atualizar análises antigas</button>`;
@@ -51,7 +52,22 @@ async function loadTracks() {
   document.querySelectorAll("th").forEach((th) => th.classList.toggle("on", th.dataset.s === state.sort));
 }
 
-$("#tbl tbody").addEventListener("click", (e) => { const tr = e.target.closest("tr"); if (tr) openTrack(+tr.dataset.id); });
+async function removeTrack(tid, title) {
+  if (!confirm(`Remover "${title}" da biblioteca?\n\nSó sai da lista e apaga a análise. O arquivo de música continua no seu disco.`)) return;
+  await api(`/api/tracks/${tid}`, { method: "DELETE" });
+  if (state.sel === tid) {
+    if (state.ws) { state.ws.destroy(); state.ws = null; }
+    state.sel = null; state.track = null;
+    $("#detail").innerHTML = `<div class="empty"><p>Faixa removida da biblioteca.</p></div>`;
+  }
+  toast("Removida da biblioteca"); loadTracks();
+}
+
+$("#tbl tbody").addEventListener("click", (e) => {
+  const rm = e.target.closest("[data-rm]");
+  if (rm) { e.stopPropagation(); const tr = rm.closest("tr"); return removeTrack(+rm.dataset.rm, tr.querySelector("td.t").firstChild.textContent.trim()); }
+  const tr = e.target.closest("tr"); if (tr) openTrack(+tr.dataset.id);
+});
 document.querySelectorAll("th").forEach((th) => th.addEventListener("click", () => {
   state.desc = state.sort === th.dataset.s ? !state.desc : th.dataset.s !== "title";
   state.sort = th.dataset.s; loadTracks();
@@ -126,7 +142,8 @@ async function openTrack(id) {
   D.innerHTML = `
     <div class="dhead">
       <div><h1>${esc(m.title)}</h1><div class="sub">${esc([m.artist, m.album, m.year].filter(Boolean).join(" · ") || t.filename)}</div></div>
-      <div class="actions"><button class="ghost small" id="re">Reanalisar</button><button class="ghost small" id="del">Remover</button></div>
+      <div class="actions"><button class="small" id="goclip">🎬 Criar videoclipe</button>
+        <button class="ghost small" id="re">Reanalisar</button><button class="ghost small danger" id="del">🗑 Remover da biblioteca</button></div>
     </div>
     <div class="player"><div id="wave"></div>
       <div class="pctl"><button id="play">▶</button><span id="pos">0:00</span> / ${fmt(a.duration)}
@@ -145,6 +162,34 @@ async function openTrack(id) {
       ${ins.moods.length ? `<div><span class="lbl">Clima</span>${ins.moods.map((d) => `<span class="chip m">${esc(d.label)}</span>`).join("")}</div>` : ""}
       <div><span class="lbl">Sons</span>${ins.has_vocals ? `<span class="chip v">🎤 voz</span>` : `<span class="chip">instrumental</span>`}${ins.instruments.map((d) => `<span class="chip">${esc(d.label)} <b>${Math.round(d.score * 100)}%</b></span>`).join("")}</div>
     </div>` : `<p class="muted">Análise antiga, sem instrumentos, acordes e letra. Clique em <b>Reanalisar</b>.</p>`}
+
+    <h2 id="cliphead">🎬 Criar videoclipe</h2>
+    <div class="box clip" id="clipbox">
+      <div class="brief" id="brief">
+        <div class="bgroup"><span class="blbl">Tipo de clipe</span><div class="chips" id="b-tipo"></div></div>
+        <div class="bgroup"><span class="blbl">Técnica</span><div class="chips" id="b-tecnica"></div></div>
+        <div class="brow">
+          <label>Formato<select id="b-formato"></select></label>
+          <label>FPS<select id="b-fps"></select></label>
+          <label class="chk"><input type="checkbox" id="b-so_motion"> só motion graphics (sem filmagem)</label>
+          ${a.lyrics ? `<label class="chk"><input type="checkbox" id="b-letra_na_tela"> letra na tela (karaokê)</label>` : ""}
+        </div>
+      </div>
+      <textarea id="extra" rows="2" placeholder="Sua ideia (opcional): ex. 'estética de papel recortado, uma ascensorista num hotel art déco, cada andar é uma festa, final igual à abertura'"></textarea>
+      <div class="genrow" id="genrow">
+        <label>Modelo<select id="g-model"></select></label>
+        <label>Esforço<select id="g-effort"></select></label>
+        <button id="genclip" class="big" title="O Claude Code cria o clipe sozinho a partir da análise e renderiza o MP4">🎬 Gerar clipe com Claude</button>
+        <span id="claudeinfo" class="muted"></span>
+      </div>
+      <div class="row subtle">
+        <span class="muted">Ou faça você mesmo no Claude:</span>
+        <button class="ghost small" id="exp" title="Cria uma pasta com o áudio, PROMPT.md e timing.json, pronta para abrir no Claude">📦 Exportar pacote</button>
+        <button class="ghost small" id="showclip">Ver prompt do clipe</button>
+        <a class="btn ghost small" href="/api/tracks/${id}/timing.json" download title="Tempos de batidas, compassos, seções, impactos, bateria, envelopes e letra palavra a palavra">timing.json</a>
+      </div>
+    </div>
+    <div id="jobwrap" style="display:none"><h2>Clipe gerado pelo Claude</h2><div class="box job" id="job"></div></div>
 
     ${h?.progression ? `<h2>Harmonia</h2><div class="box prog">
       <div class="chords">${(h.progression.rle || h.progression.chords.map((c) => [c, 1])).map(([c, n]) => `<span>${esc(c)}${n > 1 ? `<small> ×${n}</small>` : ""}</span>`).join("")}</div>
@@ -170,40 +215,19 @@ async function openTrack(id) {
         <span class="lyracts"><button class="ghost small" id="lyredit">Corrigir letra</button></span></h2>
       <div class="box lyr" id="lyrbox"></div>` : ""}
 
-    <h2>Prompt para o Claude</h2>
+    <h2 id="prompthead">Prompt para o Claude</h2>
     <div class="box prompt">
       <div class="row"><select id="goal"></select>
-        ${a.lyrics ? `<label class="chk"><input type="checkbox" id="withlyr" checked> incluir letra no prompt</label>` : ""}</div>
-      <div class="brief" id="brief">
-        <label>Tipo<select id="b-tipo"></select></label>
-        <label>Técnica<select id="b-tecnica"></select></label>
-        <label>Formato<select id="b-formato"></select></label>
-        <label>FPS<select id="b-fps"></select></label>
-        <label class="chk"><input type="checkbox" id="b-so_motion"> só motion graphics (sem filmagem)</label>
-        ${a.lyrics ? `<label class="chk"><input type="checkbox" id="b-letra_na_tela"> letra na tela</label>` : ""}
-      </div>
-      <textarea id="extra" rows="2" placeholder="Pedidos específicos: ex. 'estética de papel recortado, um personagem que é uma bolha de champanhe, final igual à abertura'"></textarea>
-      <div class="row">
-        <button id="gen">Gerar prompt</button><button class="ghost" id="copy">Copiar</button>
-        <button class="ghost" id="exp" title="Cria uma pasta com o áudio, PROMPT.md e timing.json, pronta para abrir no Claude">📦 Exportar pacote do clipe</button>
-        <a class="btn ghost" href="/api/tracks/${id}/timing.json" download title="Tempos de batidas, compassos, seções, impactos, bateria, envelopes e letra palavra a palavra">timing.json</a>
-      </div>
-      <div class="genrow" id="genrow">
-        <label>Modelo<select id="g-model"></select></label>
-        <label>Effort<select id="g-effort"></select></label>
-        <button id="genclip" title="O Claude Code cria o clipe sozinho a partir deste prompt e renderiza o MP4">🎬 Gerar clipe com Claude</button>
-        <span id="claudeinfo" class="muted"></span>
-      </div>
+        ${a.lyrics ? `<label class="chk"><input type="checkbox" id="withlyr" checked> incluir letra no prompt</label>` : ""}
+        <button id="gen">Gerar prompt</button><button class="ghost" id="copy">Copiar</button></div>
+      <p class="muted small-note">O objetivo "Videoclipe sincronizado" usa as escolhas do painel 🎬 Criar videoclipe.</p>
       <textarea id="ptext" readonly></textarea>
     </div>
-
-    <div id="jobwrap" style="display:none"><h2>Clipe gerado pelo Claude</h2><div class="box job" id="job"></div></div>
 
     <h2>Músicas parecidas na biblioteca</h2><div class="box sim" id="sim"><span class="muted">Calculando…</span></div>`;
 
   $("#re").addEventListener("click", () => reanalyze(id));
-  $("#del").addEventListener("click", async () => { if (!confirm("Remover da biblioteca? (o arquivo não é apagado)")) return;
-    await api(`/api/tracks/${id}`, { method: "DELETE" }); state.sel = null; $("#detail").innerHTML = ""; loadTracks(); });
+  $("#del").addEventListener("click", () => removeTrack(id, m.title || t.filename));
 
   // player
   const regions = RegionsPlugin.create();
@@ -228,32 +252,46 @@ async function openTrack(id) {
   const [goals, opts] = await Promise.all([api("/api/goals"), api("/api/brief-options")]);
   $("#goal").innerHTML = Object.entries(goals).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
   const opt = (sel, entries) => ($(sel).innerHTML = entries.map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join(""));
-  opt("#b-tipo", Object.entries(opts.tipo)); opt("#b-tecnica", Object.entries(opts.tecnica));
+  // tipo e técnica como botões (escolha única), para ficarem visíveis
+  const SHORT = {
+    tipo: { historia: "📖 História", danca: "💃 Dança", abstrato: "✨ Abstrato", lyric: "🔤 Lyric video", livre: "🎲 Livre" },
+    tecnica: { livre: "Livre", web: "Canvas + three.js + SVG", hyperframes: "HyperFrames", remotion: "Remotion", ae: "After Effects" },
+  };
+  const chips = (group, entries) => ($(`#b-${group}`).innerHTML = entries.map(([k, v]) =>
+    `<button type="button" class="chipbtn" data-v="${k}" title="${esc(v)}">${esc(SHORT[group][k] || v)}</button>`).join(""));
+  chips("tipo", Object.entries(opts.tipo)); chips("tecnica", Object.entries(opts.tecnica));
   opt("#b-formato", opts.formato.map((f) => [f, f])); opt("#b-fps", opts.fps.map((f) => [f, `${f} fps`]));
+  const setChip = (sel, v) => $(sel).querySelectorAll(".chipbtn").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+  const getChip = (sel) => $(sel).querySelector(".chipbtn.on")?.dataset.v;
   let saved = {}; try { saved = JSON.parse(localStorage.getItem("brief") || "{}"); } catch {}
   const brief0 = { ...opts.default, ...saved };
-  ["tipo", "tecnica", "formato", "fps"].forEach((k) => ($(`#b-${k}`).value = brief0[k]));
+  setChip("#b-tipo", brief0.tipo); setChip("#b-tecnica", brief0.tecnica);
+  ["formato", "fps"].forEach((k) => ($(`#b-${k}`).value = brief0[k]));
   ["so_motion", "letra_na_tela"].forEach((k) => { const el = $(`#b-${k}`); if (el) el.checked = !!brief0[k]; });
   const readBrief = () => {
-    const b = { tipo: $("#b-tipo").value, tecnica: $("#b-tecnica").value, formato: $("#b-formato").value,
+    const b = { tipo: getChip("#b-tipo") || "livre", tecnica: getChip("#b-tecnica") || "livre", formato: $("#b-formato").value,
       fps: +$("#b-fps").value, so_motion: $("#b-so_motion").checked, letra_na_tela: $("#b-letra_na_tela")?.checked ?? false };
     try { localStorage.setItem("brief", JSON.stringify(b)); } catch {}
     return b;
   };
-  const body = () => JSON.stringify({ goal: $("#goal").value, extra: $("#extra").value.trim() || null,
+  const body = (goal) => JSON.stringify({ goal: goal || $("#goal").value, extra: $("#extra").value.trim() || null,
     lyrics: $("#withlyr") ? $("#withlyr").checked : true, brief: readBrief() });
   const gen = async () => {
-    const isVideo = $("#goal").value === "video";
-    $("#brief").style.display = isVideo ? "" : "none";
-    $("#exp").style.display = isVideo ? "" : "none";
-    $("#genrow").style.display = isVideo ? "" : "none";
     $("#ptext").value = await api(`/api/tracks/${id}/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: body() });
   };
   $("#gen").addEventListener("click", gen); $("#goal").addEventListener("change", gen); $("#withlyr")?.addEventListener("change", gen);
-  $("#brief").addEventListener("change", gen);
+  ["#b-tipo", "#b-tecnica"].forEach((sel) => $(sel).addEventListener("click", (e) => {
+    const b = e.target.closest(".chipbtn"); if (!b) return; setChip(sel, b.dataset.v); readBrief();
+    if ($("#goal").value === "video") gen();
+  }));
+  $("#brief").addEventListener("change", () => { readBrief(); if ($("#goal").value === "video") gen(); });
+  $("#showclip").addEventListener("click", async () => {
+    $("#goal").value = "video"; await gen(); $("#prompthead").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("#goclip").addEventListener("click", () => $("#cliphead").scrollIntoView({ behavior: "smooth", block: "start" }));
   $("#copy").addEventListener("click", async () => { if (!$("#ptext").value) await gen(); await navigator.clipboard.writeText($("#ptext").value); toast("Prompt copiado. Cole no Claude."); });
   $("#exp").addEventListener("click", async () => {
-    try { const r = await api(`/api/tracks/${id}/export`, { method: "POST", headers: { "content-type": "application/json" }, body: body() });
+    try { const r = await api(`/api/tracks/${id}/export`, { method: "POST", headers: { "content-type": "application/json" }, body: body("video") });
       toast(`Pacote criado: ${r.folder}`); } catch (e) { toast("Erro ao exportar: " + e.message); }
   });
   gen();
