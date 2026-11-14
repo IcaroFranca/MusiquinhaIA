@@ -383,19 +383,45 @@ function watchJob(id, job) {
 // ---------------------------------------------------------------- letra (ver / corrigir)
 function renderLyrics(id, a, ws, edit) {
   const L = a.lyrics, box = $("#lyrbox");
-  $("#lyrsrc").textContent = L.edited ? "(corrigida por você)" : `(Whisper · ${L.language || "?"} · pode conter erros)`;
+  $("#lyrsrc").textContent = L.source === "colada" ? "(colada por você · sincronizada pelo áudio)"
+    : L.edited ? "(corrigida por você)" : `(Whisper · ${L.language || "?"} · pode conter erros)`;
   $(".lyracts").innerHTML = edit
-    ? `<button class="small" id="lyrsave">Salvar</button><button class="ghost small" id="lyrcancel">Cancelar</button>`
-    : `<button class="ghost small" id="lyredit">Corrigir letra</button>${L.edited ? `<button class="ghost small" id="lyrrestore">Restaurar original</button>` : ""}`;
+    ? `<button class="small" id="lyrsave">${edit === "paste" ? "Sincronizar e salvar" : "Salvar"}</button><button class="ghost small" id="lyrcancel">Cancelar</button>`
+    : `<button class="ghost small" id="lyrpaste" title="Cole a letra oficial (ex.: do Genius); o site encaixa cada palavra no tempo em que é cantada">📋 Colar letra correta</button>
+       <button class="ghost small" id="lyredit">Corrigir linha a linha</button>${L.edited ? `<button class="ghost small" id="lyrrestore">Restaurar original</button>` : ""}`;
   if (!edit) {
-    box.innerHTML = L.lines.map((l, i) => `<div data-i="${i}"><span class="time">${fmt(l.start)}</span>${esc(l.text)}</div>`).join("")
-      || `<span class="muted">Sem letra.</span>`;
+    let part = null;
+    box.innerHTML = L.lines.map((l, i) => {
+      const tag = l.part && l.part !== part ? `<div class="lpart">${esc(l.part)}</div>` : "";
+      part = l.part || part;
+      return `${tag}<div data-i="${i}"><span class="time">${fmt(l.start)}</span>${esc(l.text)}</div>`;
+    }).join("") || `<span class="muted">Sem letra.</span>`;
     box.querySelectorAll("[data-i]").forEach((el) => el.addEventListener("click", () => { ws.setTime(L.lines[+el.dataset.i].start); ws.play(); }));
     $("#lyredit").onclick = () => renderLyrics(id, a, ws, true);
+    $("#lyrpaste").onclick = () => renderLyrics(id, a, ws, "paste");
     if ($("#lyrrestore")) $("#lyrrestore").onclick = async () => {
       if (!confirm("Voltar para a transcrição automática? Suas correções serão descartadas.")) return;
       a.lyrics = await api(`/api/tracks/${id}/lyrics`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ restore: true }) });
-      renderLyrics(id, a, ws, false); toast("Transcrição original restaurada");
+      toast("Transcrição original restaurada"); openTrack(id);
+    };
+    return;
+  }
+  if (edit === "paste") {
+    box.innerHTML = `<p class="muted lyrhelp">Cole a letra completa e correta. Cabeçalhos como [Verse 1], [Chorus] e [Bridge] viram os nomes das seções, e o lixo de site ("You might also like"…) é ignorado.
+      Os tempos vêm do que o Whisper ouviu: cada palavra que bate herda o tempo exato, e o resto é encaixado onde há voz.</p>
+      <textarea id="lyrpastebox" class="lyrpaste" spellcheck="false" placeholder="[Verse 1]
+Primeira linha da letra…"></textarea>`;
+    $("#lyrpastebox").focus();
+    $("#lyrcancel").onclick = () => renderLyrics(id, a, ws, false);
+    $("#lyrsave").onclick = async () => {
+      const text = $("#lyrpastebox").value;
+      if (!text.trim()) return toast("Cole a letra primeiro");
+      if (L.edited && !confirm("Substituir a letra atual pela colada?")) return;
+      try {
+        await api(`/api/tracks/${id}/lyrics/paste`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) });
+      } catch (e) { return toast(e.message || "Não consegui alinhar a letra"); }
+      toast("Letra sincronizada. Prompt, seções e timing.json já usam a versão correta.");
+      openTrack(id);
     };
     return;
   }

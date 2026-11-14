@@ -173,6 +173,19 @@ def save_lyrics(tid: int, req: LyricsReq):
     return library.save_lyrics(tid, req.lines, req.restore)
 
 
+class PasteReq(BaseModel):
+    text: str
+
+
+@app.post("/api/tracks/{tid}/lyrics/paste")
+def paste_lyrics(tid: int, req: PasteReq):
+    _analyzed(tid)
+    try:
+        return library.paste_lyrics(tid, req.text)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 EXPORTS = os.path.join(os.path.dirname(library.DATA_DIR), "exports")
 
 

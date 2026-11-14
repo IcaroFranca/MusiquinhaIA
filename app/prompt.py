@@ -136,6 +136,7 @@ def build_timing(a: dict, filename: str | None = None, full: bool = True) -> dic
         "accents": a.get("accents", []),
         "lyrics": [{"start": l["start"], "end": l["end"], "text": l["text"],
                     **({"repeat": l["repeat"]} if l.get("repeat") else {}),
+                    **({"part": l["part"]} if l.get("part") else {}),
                     **({"words": l["words"]} if full and l.get("words") else {})}
                    for l in lyr.get("lines", [])],
         "energy_per_second": [round(v, 2) for v in a["energy_curve"]],
@@ -186,10 +187,16 @@ def _video_blocks(a: dict, lyrics: bool, filename: str | None, files: bool) -> l
                 + (" — tempos de cada uma no timing.json" if files else "")]
     lyr = a.get("lyrics") or {}
     if lyrics and lyr.get("lines"):
-        src = "corrigida pelo usuário" if lyr.get("edited") else \
+        src = "letra oficial fornecida pelo usuário, sincronizada pelo áudio" if lyr.get("source") == "colada" else \
+              "corrigida pelo usuário" if lyr.get("edited") else \
               f"transcrição automática Whisper, idioma {lyr.get('language') or '?'}; pode conter erros de audição"
         out += ["", f"### Letra sincronizada ({src})"]
-        out += [f"- {_s(l['start'])} → {_s(l['end'])}: {l['text']}" for l in lyr["lines"]]
+        part = None
+        for l in lyr["lines"]:
+            if l.get("part") and l["part"] != part:
+                part = l["part"]
+                out.append(f"- [{part}]")
+            out.append(f"- {_s(l['start'])} → {_s(l['end'])}: {l['text']}")
     t = build_timing(a, filename, full=False)
     if not lyrics:
         t.pop("lyrics", None)
@@ -292,8 +299,10 @@ def build_prompt(a: dict, goal: str = "video", extra: str | None = None, lyrics:
     lines += [
         "",
         "## Estrutura (seções detectadas automaticamente)",
-        "Letras iguais = seções com material musical parecido. Nomes de seção são palpites heurísticos. "
-        "Energia em escala 0–1 (1 = momento mais forte da música), a mesma usada na curva e nos eventos.",
+        "Letras iguais = seções com material musical parecido. "
+        + ("Nomes de seção vêm dos cabeçalhos da letra oficial (onde há canto); nas partes instrumentais são palpites. "
+           if any("name_auto" in s for s in a["sections"]) else "Nomes de seção são palpites heurísticos. ")
+        + "Energia em escala 0–1 (1 = momento mais forte da música), a mesma usada na curva e nos eventos.",
     ]
     for s in a["sections"]:
         lines += ["", f"### {_t(s['start'])}–{_t(s['end'])} · {s['name']} (grupo {s['label']}) · {s['bars']} compassos"]

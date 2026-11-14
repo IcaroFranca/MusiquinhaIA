@@ -222,13 +222,59 @@ def apply_lyrics(a: dict, new_lines: list[dict]) -> dict:
             end = start + 1.0
         same = src and src.get("text") == text and src.get("start") == start and src.get("end") == end
         words = src.get("words") if same else _retime(text, start, end, src.get("words"))
-        out.append({"start": round(start, 2), "end": round(end, 2), "text": text, "words": words or []})
+        line = {"start": round(start, 2), "end": round(end, 2), "text": text, "words": words or []}
+        if src.get("part"):
+            line["part"] = src["part"]
+        out.append(line)
     out.sort(key=lambda l: l["start"])
     lyr.update(lines=out, edited=True, word_level=True)
     a["lyrics"] = lyr
-    for s in a.get("sections", []):
-        s["lyrics"] = [l["text"] for l in out if s["start"] <= (l["start"] + l["end"]) / 2 < s["end"]]
+    sync_sections(a)
     return a
+
+
+def sync_sections(a: dict):
+    """Põe a letra em cada seção e, se a letra colada tinha cabeçalhos ([Chorus]…), usa-os como nome da seção."""
+    lines = (a.get("lyrics") or {}).get("lines", [])
+    for s in a.get("sections", []):
+        inside = [l for l in lines if s["start"] <= (l["start"] + l["end"]) / 2 < s["end"]]
+        s["lyrics"] = [l["text"] for l in inside]
+        votes: dict[str, float] = {}
+        for l in inside:
+            if l.get("part"):
+                votes[l["part"]] = votes.get(l["part"], 0) + l["end"] - l["start"]
+        if votes:
+            s.setdefault("name_auto", s["name"])
+            s["name"] = max(votes, key=votes.get)
+        elif any(l.get("part") for l in lines):     # letra com partes, mas aqui ninguém canta
+            s.setdefault("name_auto", s["name"])
+            s["name"] = ("Intro" if s["end"] <= lines[0]["start"] + 0.5 else
+                         "Final instrumental" if s["start"] >= lines[-1]["end"] - 0.5 else "Instrumental")
+        elif "name_auto" in s:
+            s["name"] = s.pop("name_auto")
+
+
+def paste_lyrics(tid: int, text: str) -> dict:
+    """Substitui a letra pela versão colada, mantendo a sincronia que o Whisper ouviu."""
+    from .lyrics_align import align, parse_pasted
+    t = get_track(tid)
+    if not t or not t["analysis"]:
+        raise KeyError(tid)
+    a = t["analysis"]
+    pasted = parse_pasted(text)
+    if not pasted:
+        raise ValueError("Nenhuma linha de letra encontrada no texto colado.")
+    lyr = a.get("lyrics") or {"language": None, "lines": [], "model": "manual"}
+    ref_lines = lyr.get("original_lines", lyr.get("lines", []))
+    ref_words = [w for l in ref_lines for w in (l.get("words") or [])]
+    lines = align(pasted, ref_words, a.get("vocal_regions") or [], a.get("duration") or 0)
+    lyr.setdefault("original_lines", lyr.get("lines", []))
+    lyr.update(lines=lines, edited=True, word_level=True, source="colada")
+    a["lyrics"] = lyr
+    sync_sections(a)
+    conn().execute("UPDATE tracks SET analysis=? WHERE id=?", (json.dumps(a), tid))
+    conn().commit()
+    return {"lyrics": lyr, "sections": a["sections"]}
 
 
 def save_lyrics(tid: int, new_lines: list[dict] | None, restore: bool = False) -> dict:
@@ -240,10 +286,9 @@ def save_lyrics(tid: int, new_lines: list[dict] | None, restore: bool = False) -
         orig = (a.get("lyrics") or {}).get("original_lines")
         if orig is not None:
             a["lyrics"]["lines"] = orig
-            for k in ("original_lines", "edited"):
+            for k in ("original_lines", "edited", "source"):
                 a["lyrics"].pop(k, None)
-            for s in a.get("sections", []):
-                s["lyrics"] = [l["text"] for l in orig if s["start"] <= (l["start"] + l["end"]) / 2 < s["end"]]
+            sync_sections(a)
     else:
         a = apply_lyrics(a, new_lines or [])
     conn().execute("UPDATE tracks SET analysis=? WHERE id=?", (json.dumps(a), tid))
@@ -304,10 +349,8 @@ class Worker:
                 prev = conn().execute("SELECT analysis FROM tracks WHERE id=?", (tid,)).fetchone()
                 prev_lyr = (json.loads(prev["analysis"]) or {}).get("lyrics") if prev and prev["analysis"] else None
                 if prev_lyr and prev_lyr.get("edited"):
-                    a["lyrics"] = {**prev_lyr, "lines": []}
-                    a = apply_lyrics(a, [{"start": l["start"], "end": l["end"], "text": l["text"]}
-                                         for l in prev_lyr["lines"]])
-                    a["lyrics"]["lines"] = prev_lyr["lines"]   # mantém os tempos por palavra já corrigidos
+                    a["lyrics"] = prev_lyr                     # mantém os tempos por palavra já corrigidos
+                    sync_sections(a)
                 m = a["meta"]
                 conn().execute(
                     """UPDATE tracks SET status='done', error=NULL, title=?, artist=?, album=?, year=?,

@@ -179,3 +179,6 @@ button.big { padding: 10px 20px; font-size: 15px; }
   .lib { max-height: 50vh; border-right: 0; border-bottom: 1px solid var(--line); }
   .grid2 { grid-template-columns: 1fr; }
 }
+.lyr div.lpart { cursor: default; padding: 10px 8px 2px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+.lyr div.lpart:hover { background: none; }
+.lyr textarea.lyrpaste { width: 100%; min-height: 320px; resize: vertical; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
